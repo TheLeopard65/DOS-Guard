@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FIXER - DASHBOARD</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #BCD2EE;
+    }
+    nav {
+      background-color: dodgerblue;
+      color: white;
+      padding: 10px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      top: 0;
+      left: 0;
+      width: 100%;
+      position: fixed;
+    }
+    #table-box {
+      height: 31%;
+      overflow-y: hidden;
+      border: 2px black;
+      border-radius: 10px;
+    }
+    .table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+      height: 30%;
+      overflow: hidden;
+    }
+    .table th, td {
+      border: 1px solid #ddd;
+      padding: 4px;
+      text-align: center;
+    }
+    .table th {
+      background-color: #20447a;
+    }
+    #empty-state {
+      font-style: italic;
+      color: #999;
+    }
+    #packets-body {
+      height: 100%;
+      overflow-y: scroll;
+    }
+    #chart-container {
+      display: flex;
+      justify-content: center;
+      position: relative;
+    }
+    .chart-border {
+      margin-top: 50px;
+      margin-left: 75%;
+      padding: 5px;
+      border-color: black;
+      border-radius: 10px;
+      width: 323px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    #stats {
+      position: absolute;
+      display: none;
+      width: 1000px;
+      height: 315px;
+      margin-left: 15px;
+      border: 2px solid black;
+      padding: 5px;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <nav>FIXER - DASHBOARD</nav>
+  <div id="stats">
+    <p>TOTAL PACKETS CAPTURED : <span id="total-packets">0</span></p>
+    <p>HIHEST NUMBER OF PACKETS FOR ANY PROTOCOL : <span id="protocol-packets-highest">0</span></p>
+    <p>PROTOCOL HAVING HIGHEST NUMBER OF PACKETS : <span id="protocol-packets-name">N/A</span></p>
+    <p>TOTAL NUMBER OF PROTOCOLS CAPTURED : <span id="total-protocols-captured">0</span></p>
+    <p>NAMES OF THE PROTOCOLS CAPTURED : <span id="protocols-captured-names">0</span></p>
+    <p>HIHEST NUMBER OF PACKETS FROM ANY IP-ADSRESS : <span id="ipaddress-packets-highest">0</span></p>
+    <p>IP-ADDRESS HAVING HIGHEST NUMBER OF PACKETS : <span id="ipaddress-packets-address">0</span></p>
+    <p>DDOS PROBABILITY FROM ANY IP-ADDRESS : <span id="ddos-probability">0</span></p>
+    <p>POSSIBLE DDOS ATTACKER (IP-ADDRESS) : <span id="possible-ddos-attacker">0</span></p>
+  </div>
+  <div id="chart-container" class="chart-border">
+<div id="protocol-chart"></div>
+  </div>
+  <div style="height: 380px; overflow-y: hidden;">
+    <table id="packet-table" class="table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>PACKET ID</th>
+          <th>DESTINATION</th>
+          <th>SOURCE</th>
+          <th>TTL</th>
+          <th>PROTOCOL</th>
+          <th>LENGTH</th>
+          <th>CHECKSUM</th>
+        </tr>
+      </thead>
+      <tbody id="packets-body">
+      </tbody>
+    </table>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <script>
+    const packetStatistics = {
+        totalPackets: 0,
+        protocolPacketCounts: {},
+        highestProtocolPackets: 0,
+        highestProtocolPacketsname: "N/A",
+        totalProtocolsCaptured: 0,
+        protocolsCapturedNames: [],
+        ipAddressPacketCounts: {},
+        ipaddresspacketshighest: 0,
+        ipaddresspacketsaddress: '0.0.0.0',
+        ddosProbability: 0,
+        possibleDdosAttacker: '0.0.0.0',
+
+        incrementTotalPackets() { this.totalPackets++; },
+        updateProtocolPacketCounts(protocol) {
+            this.protocolPacketCounts[protocol] = (this.protocolPacketCounts[protocol] || 0) + 1;
+            if (this.protocolPacketCounts[protocol] > this.highestProtocolPackets) {
+                this.highestProtocolPackets = this.protocolPacketCounts[protocol];
+                this.highestProtocolPacketsname = protocol;
+          }
+            if (!this.protocolsCapturedNames.includes(protocol)) {
+                this.totalProtocolsCaptured++;
+                this.protocolsCapturedNames.push(protocol);
+          }
+        },
+        updateIpAddressPacketCounts(src) {
+            const key = `${src}`;
+            this.ipAddressPacketCounts[key] = (this.ipAddressPacketCounts[key] || 0) + 1;
+            const count = this.ipAddressPacketCounts[key];
+            if (count > this.ipaddresspacketshighest) {
+            this.ipaddresspacketshighest = count;
+            this.ipaddresspacketsaddress = key;
+            }
+        },
+        calculateDdosProbability() {
+            this.ddosProbability = (this.highestProtocolPackets / this.totalPackets) * 100;
+            this.possibleDdosAttacker = this.ipaddresspacketsaddress;
+        },
+        updateChart() {
+            const chartData = google.visualization.arrayToDataTable([
+            ['Protocol', 'Count'],
+            ...Object.entries(this.protocolPacketCounts).filter(([key]) => key !== 'total')
+            ]);
+            const chartOptions = {
+                title: 'PROTOCOLS',
+                is3D: false,
+                width: 320,
+                height: 320,
+                chartArea: { width: '95%', height: '95%' },
+                legend: 'none'
+                };
+            const chart = new google.visualization.PieChart(document.getElementById('protocol-chart'));
+            chart.draw(chartData, chartOptions);
+            },
+        updateStats() {
+            document.getElementById('total-packets').textContent = this.totalPackets;
+            document.getElementById('protocol-packets-highest').textContent = this.highestProtocolPackets;
+            document.getElementById('protocol-packets-name').textContent = this.highestProtocolPacketsname;
+            document.getElementById('total-protocols-captured').textContent = this.totalProtocolsCaptured;
+            document.getElementById('protocols-captured-names').textContent = this.protocolsCapturedNames.join(', ');
+            document.getElementById('ipaddress-packets-highest').textContent = this.ipaddresspacketshighest;
+            document.getElementById('ipaddress-packets-address').textContent = this.ipaddresspacketsaddress;
+            document.getElementById('ddos-probability').textContent = this.ddosProbability.toFixed(2) + '%';
+            document.getElementById('possible-ddos-attacker').textContent = this.possibleDdosAttacker;
+        },
+    };
+
+    google.charts.load('current', {'packages':['corechart']});
+    google.charts.setOnLoadCallback(packetStatistics.updateChart);
+    const socket = io();
+    socket.on('packet', (packet) => {
+        const packetsBody = document.getElementById('packets-body');
+        const newRow = document.createElement('tr');
+        // New Packet Serial No. row
+        const noCell = document.createElement('td');
+        noCell.textContent = packet.i;
+        newRow.appendChild(noCell);
+        // New Packet ID row
+        const idCell = document.createElement('td');
+        idCell.textContent = packet.id;
+        newRow.appendChild(idCell);
+        // New Packet Source row
+        const srcCell = document.createElement('td');
+        srcCell.textContent = packet.src;
+        newRow.appendChild(srcCell);
+        // New Packet Destiontion row
+        const dstCell = document.createElement('td');
+        dstCell.textContent = packet.dst;
+        newRow.appendChild(dstCell);
+        // New Packet TTL row
+        const ttlCell = document.createElement('td');
+        ttlCell.textContent = packet.ttl;
+        newRow.appendChild(ttlCell);
+        // New Packet Protocol row
+        const protoCell = document.createElement('td');
+        protoCell.textContent = packet.proto;
+        newRow.appendChild(protoCell);
+        // New Packet Length row
+        const lenCell = document.createElement('td');
+        lenCell.textContent = packet.len;
+        newRow.appendChild(lenCell);
+        // New Packet CheckSum row
+        const chksumCell = document.createElement('td');
+        chksumCell.textContent = packet.chksum;
+        newRow.appendChild(chksumCell);
+        packetsBody.insertBefore(newRow, packetsBody.firstChild);
+
+        // Display Stats only if First Packet is Received
+        if (packetStatistics.totalPackets >= 0) {
+            document.getElementById('stats').style.display = 'block';
+            packetStatistics.incrementTotalPackets();
+            packetStatistics.updateProtocolPacketCounts(packet.proto);
+            packetStatistics.updateIpAddressPacketCounts(packet.src);
+            packetStatistics.calculateDdosProbability();
+            packetStatistics.updateChart();
+            packetStatistics.updateStats();
+        }
+    });
+</script>
+</body>
+</html>
