@@ -5,7 +5,8 @@ from flask_socketio import SocketIO
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'FIXER-DETECTOR'
-socketio = SocketIO(app)
+
+socketio = SocketIO(app, async_mode='eventlet')
 
 logs = sqlite3.connect("Events.db")
 if not os.path.exists("Events.db"):

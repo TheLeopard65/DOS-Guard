@@ -1,0 +1,4 @@
+flask
+scapy
+flask_socketio
+eventlet
